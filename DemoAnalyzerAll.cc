@@ -82,6 +82,9 @@ private:
     
     TH1D* hPt_ks[13];
     TH1D* hPt_la[13];
+
+    TH1D* hEta_ks[13];
+    TH1D* hEta_la[13];
     
     TH1D* hMult_ks[13];
     TH2D* hSignal_ks[13];
@@ -92,6 +95,9 @@ private:
     
     TH1D* hPt_ks_bkg[13];
     TH1D* hPt_la_bkg[13];
+
+    TH1D* hEta_ks_bkg[13];
+    TH1D* hEta_la_bkg[13];
     
     TH1D* hMult_ks_bkg[13];
     TH2D* hSignal_ks_bkg[13];
@@ -153,6 +159,13 @@ private:
     double mis_ks_range_;
     double mis_la_range_;
     double mis_ph_range_;
+    bool rejectDaughter_;
+    
+    edm::EDGetTokenT<reco::VertexCollection> tok_offlinePV_;
+    edm::EDGetTokenT<reco::TrackCollection> tok_generalTrk_;
+    
+    edm::EDGetTokenT<reco::VertexCompositeCandidateCollection> tok_kshort_;
+    edm::EDGetTokenT<reco::VertexCompositeCandidateCollection> tok_lambda_;
 };
 
 //
@@ -196,6 +209,12 @@ DemoAnalyzerAll::DemoAnalyzerAll(const edm::ParameterSet& iConfig)
     ptcut_ks_ = iConfig.getUntrackedParameter<std::vector<double> >("ptcut_ks");
     ptcut_la_ = iConfig.getUntrackedParameter<std::vector<double> >("ptcut_la");
 
+    rejectDaughter_ = iConfig.getUntrackedParameter<bool>("rejectDaughter");
+    
+    tok_offlinePV_ = consumes<reco::VertexCollection>(edm::InputTag("offlinePrimaryVertices"));
+    tok_generalTrk_ = consumes<reco::TrackCollection>(edm::InputTag("generalTracks"));
+    tok_kshort_ = consumes<reco::VertexCompositeCandidateCollection>(iConfig.getUntrackedParameter<edm::InputTag>("KshortCollection"));
+    tok_lambda_ = consumes<reco::VertexCompositeCandidateCollection>(iConfig.getUntrackedParameter<edm::InputTag>("LambdaCollection"));
 }
 
 
@@ -221,7 +240,7 @@ DemoAnalyzerAll::analyze(const edm::Event& iEvent, const edm::EventSetup&
     
     // select on requirement of valid vertex
     edm::Handle<reco::VertexCollection> vertices;
-    iEvent.getByLabel("offlinePrimaryVertices",vertices);
+    iEvent.getByToken(tok_offlinePV_,vertices);
     double bestvz=-999.9, bestvx=-999.9, bestvy=-999.9;
     double bestvzError=-999.9, bestvxError=-999.9, bestvyError=-999.9;
     const reco::Vertex & vtx = (*vertices)[0];
@@ -231,15 +250,15 @@ DemoAnalyzerAll::analyze(const edm::Event& iEvent, const edm::EventSetup&
     if(bestvz < -15.0 || bestvz>15.0) return;
     
     edm::Handle<reco::VertexCompositeCandidateCollection> v0candidates_ks;
-    iEvent.getByLabel("generalV0CandidatesNew","Kshort",v0candidates_ks);
+    iEvent.getByToken(tok_kshort_,v0candidates_ks);
     if(!v0candidates_ks.isValid()) return;
     
     edm::Handle<reco::VertexCompositeCandidateCollection> v0candidates_la;
-    iEvent.getByLabel("generalV0CandidatesNew","Lambda",v0candidates_la);
+    iEvent.getByToken(tok_lambda_,v0candidates_la);
     if(!v0candidates_la.isValid()) return;
     
     edm::Handle<reco::TrackCollection> tracks;
-    iEvent.getByLabel("generalTracks", tracks);
+    iEvent.getByToken(tok_generalTrk_, tracks);
     
     for(int i=0;i<ptbin_n_;i++)
     {
@@ -284,7 +303,6 @@ DemoAnalyzerAll::analyze(const edm::Event& iEvent, const edm::EventSetup&
     hMult->Fill(nMult_ass_good);
     
     if(nMult_ass_good<multMax_ && nMult_ass_good>=multMin_){
-        //loop over tracks
         for(unsigned it=0; it<v0candidates_ks->size(); ++it){
             
             const reco::VertexCompositeCandidate & trk = (*v0candidates_ks)[it];
@@ -347,7 +365,7 @@ DemoAnalyzerAll::analyze(const edm::Event& iEvent, const edm::EventSetup&
             
             //efficiency
             double effks = effhisto_ks->GetBinContent(effhisto_ks->FindBin(eta,pt));
-            
+
             double eta_dau1 = dau1->eta();
             double phi_dau1 = dau1->phi();
             double pt_dau1 = dau1->pt();
@@ -374,6 +392,7 @@ DemoAnalyzerAll::analyze(const edm::Event& iEvent, const edm::EventSetup&
                         pVect_dau_ks[i]->push_back(pvector_dau1);
                         pVect_dau_ks[i]->push_back(pvector_dau2);
                         hPt_ks[i]->Fill(pt,1.0/effks);
+			hEta_ks[i]->Fill(eta,1.0/effks);
                         double KET = sqrt(mass*mass + pt*pt) - mass;
                         hKET_ks[i]->Fill(KET,1.0/effks);
                     }
@@ -382,6 +401,7 @@ DemoAnalyzerAll::analyze(const edm::Event& iEvent, const edm::EventSetup&
                         pVect_dau_ks_bkg[i]->push_back(pvector_dau1);
                         pVect_dau_ks_bkg[i]->push_back(pvector_dau2);
                         hPt_ks_bkg[i]->Fill(pt,1.0/effks);
+			hEta_ks_bkg[i]->Fill(eta,1.0/effks);
                         double KET = sqrt(mass*mass + pt*pt) - mass;
                         hKET_ks_bkg[i]->Fill(KET,1.0/effks);
                     }
@@ -450,7 +470,7 @@ DemoAnalyzerAll::analyze(const edm::Event& iEvent, const edm::EventSetup&
             
             //efficiency
             double effla = effhisto_la->GetBinContent(effhisto_la->FindBin(eta,pt));
-            
+
             double eta_dau1 = dau1->eta();
             double phi_dau1 = dau1->phi();
             double pt_dau1 = dau1->pt();
@@ -478,6 +498,7 @@ DemoAnalyzerAll::analyze(const edm::Event& iEvent, const edm::EventSetup&
                         pVect_dau_la[i]->push_back(pvector_dau1);
                         pVect_dau_la[i]->push_back(pvector_dau2);
                         hPt_la[i]->Fill(pt,1.0/effla);
+                        hEta_la[i]->Fill(eta,1.0/effla);
                         double KET = sqrt(mass*mass + pt*pt) - mass;
                         hKET_la[i]->Fill(KET,1.0/effla);
                     }
@@ -486,6 +507,7 @@ DemoAnalyzerAll::analyze(const edm::Event& iEvent, const edm::EventSetup&
                         pVect_dau_la_bkg[i]->push_back(pvector_dau1);
                         pVect_dau_la_bkg[i]->push_back(pvector_dau2);
                         hPt_la_bkg[i]->Fill(pt,1.0/effla);
+                        hEta_la_bkg[i]->Fill(eta,1.0/effla);
                         double KET = sqrt(mass*mass + pt*pt) - mass;
                         hKET_la_bkg[i]->Fill(KET,1.0/effla);
                     }
@@ -539,7 +561,7 @@ DemoAnalyzerAll::analyze(const edm::Event& iEvent, const edm::EventSetup&
                 double eta_trg = pvector_trg.Eta();
                 
                 double effks = effhisto_ks->GetBinContent(effhisto_ks->FindBin(eta_trg,pt_trg));
-                
+
                 nMult_trg_eff_ks = nMult_trg_eff_ks + 1.0/effks;
             }
             
@@ -550,7 +572,7 @@ DemoAnalyzerAll::analyze(const edm::Event& iEvent, const edm::EventSetup&
                 double eta_trg = pvector_trg.Eta();
 
                 double effla = effhisto_la->GetBinContent(effhisto_la->FindBin(eta_trg,pt_trg));
-                
+
                 nMult_trg_eff_la = nMult_trg_eff_la + 1.0/effla;
             }
 
@@ -583,9 +605,12 @@ DemoAnalyzerAll::analyze(const edm::Event& iEvent, const edm::EventSetup&
 
                     double effweight_ass = effhisto->GetBinContent(effhisto->FindBin(eta_ass,pt_ass));
                     
+		if(rejectDaughter_)
+		{
                     if(fabs(eta_ass-eta_trg_dau1)<0.03 && fabs(phi_ass-phi_trg_dau1)<0.03) continue;
                     if(fabs(eta_ass-eta_trg_dau2)<0.03 && fabs(phi_ass-phi_trg_dau2)<0.03) continue;
-                    
+                }
+   
                     double deltaEta=eta_ass-eta_trg;
                     double deltaPhi=phi_ass-phi_trg;
                     if(deltaPhi>PI)
@@ -608,7 +633,7 @@ DemoAnalyzerAll::analyze(const edm::Event& iEvent, const edm::EventSetup&
                 double pt_trg = pvector_trg.Pt();
                 
                 double effla = effhisto_la->GetBinContent(effhisto_la->FindBin(eta_trg,pt_trg));
-                
+
                 TVector3 pvector_trg_dau1 = (*pVect_dau_la[i])[2*ntrg];
                 double eta_trg_dau1 = pvector_trg_dau1.Eta();
                 double phi_trg_dau1 = pvector_trg_dau1.Phi();
@@ -626,9 +651,12 @@ DemoAnalyzerAll::analyze(const edm::Event& iEvent, const edm::EventSetup&
                     
                     double effweight_ass = effhisto->GetBinContent(effhisto->FindBin(eta_ass,pt_ass));
                     
+		if(rejectDaughter_)
+                {
                     if(fabs(eta_ass-eta_trg_dau1)<0.03 && fabs(phi_ass-phi_trg_dau1)<0.03) continue;
                     if(fabs(eta_ass-eta_trg_dau2)<0.03 && fabs(phi_ass-phi_trg_dau2)<0.03) continue;
-                    
+                }
+   
                     double deltaEta=eta_ass-eta_trg;
                     double deltaPhi=phi_ass-phi_trg;
                     if(deltaPhi>PI)
@@ -660,7 +688,7 @@ DemoAnalyzerAll::analyze(const edm::Event& iEvent, const edm::EventSetup&
                 double eta_trg = pvector_trg.Eta();
                 
                 double effks = effhisto_ks->GetBinContent(effhisto_ks->FindBin(eta_trg,pt_trg));
-                
+
                 nMult_trg_eff_ks = nMult_trg_eff_ks + 1.0/effks;
             }
             
@@ -671,7 +699,7 @@ DemoAnalyzerAll::analyze(const edm::Event& iEvent, const edm::EventSetup&
                 double eta_trg = pvector_trg.Eta();
                 
                 double effla = effhisto_la->GetBinContent(effhisto_la->FindBin(eta_trg,pt_trg));
-                
+
                 nMult_trg_eff_la = nMult_trg_eff_la + 1.0/effla;
             }
             
@@ -686,7 +714,7 @@ DemoAnalyzerAll::analyze(const edm::Event& iEvent, const edm::EventSetup&
                 double pt_trg = pvector_trg.Pt();
                 
                 double effks = effhisto_ks->GetBinContent(effhisto_ks->FindBin(eta_trg,pt_trg));
-                
+
                 TVector3 pvector_trg_dau1 = (*pVect_dau_ks_bkg[i])[2*ntrg];
                 double eta_trg_dau1 = pvector_trg_dau1.Eta();
                 double phi_trg_dau1 = pvector_trg_dau1.Phi();
@@ -704,9 +732,12 @@ DemoAnalyzerAll::analyze(const edm::Event& iEvent, const edm::EventSetup&
                     
                     double effweight_ass = effhisto->GetBinContent(effhisto->FindBin(eta_ass,pt_ass));
                     
+		if(rejectDaughter_)
+                {
                     if(fabs(eta_ass-eta_trg_dau1)<0.03 && fabs(phi_ass-phi_trg_dau1)<0.03) continue;
                     if(fabs(eta_ass-eta_trg_dau2)<0.03 && fabs(phi_ass-phi_trg_dau2)<0.03) continue;
-                    
+                }
+   
                     double deltaEta=eta_ass-eta_trg;
                     double deltaPhi=phi_ass-phi_trg;
                     if(deltaPhi>PI)
@@ -729,7 +760,7 @@ DemoAnalyzerAll::analyze(const edm::Event& iEvent, const edm::EventSetup&
                 double pt_trg = pvector_trg.Pt();
                 
                 double effla = effhisto_la->GetBinContent(effhisto_la->FindBin(eta_trg,pt_trg));
-                
+
                 TVector3 pvector_trg_dau1 = (*pVect_dau_la_bkg[i])[2*ntrg];
                 double eta_trg_dau1 = pvector_trg_dau1.Eta();
                 double phi_trg_dau1 = pvector_trg_dau1.Phi();
@@ -746,10 +777,13 @@ DemoAnalyzerAll::analyze(const edm::Event& iEvent, const edm::EventSetup&
                     double pt_ass = pvector_ass.Pt();
                     
                     double effweight_ass = effhisto->GetBinContent(effhisto->FindBin(eta_ass,pt_ass));
-                    
+                   
+		if(rejectDaughter_)
+                { 
                     if(fabs(eta_ass-eta_trg_dau1)<0.03 && fabs(phi_ass-phi_trg_dau1)<0.03) continue;
                     if(fabs(eta_ass-eta_trg_dau2)<0.03 && fabs(phi_ass-phi_trg_dau2)<0.03) continue;
-                    
+                }
+   
                     double deltaEta=eta_ass-eta_trg;
                     double deltaPhi=phi_ass-phi_trg;
                     if(deltaPhi>PI)
@@ -801,18 +835,18 @@ DemoAnalyzerAll::beginJob()
 {
     edm::Service<TFileService> fs;
     
-    TH1D::SetDefaultSumw2();
-    
-    edm::FileInPath fip("Demo/DemoAnalyzer/data/TrackCorrections_HIJING_538_OFFICIAL_Mar24.root");
+    TH1::SetDefaultSumw2();
+
+    edm::FileInPath fip("Demo/DemoAnalyzer/data/trkEff_pp_all_74X_origin.root");
     TFile f(fip.fullPath().c_str(),"READ");
     effhisto = (TH2F*)f.Get("rTotalEff3D");
     
-    edm::FileInPath fip1("Demo/DemoAnalyzer/data/Efficiency2D_V0_pPbHijing_smooth10.root");
+    edm::FileInPath fip1("Demo/DemoAnalyzer/data/V0_pp13TeV_Efficiency.root");
     TFile f1(fip1.fullPath().c_str(),"READ");
-    effhisto_ks = (TH2D*)f1.Get("Eff2D_ks");
-    effhisto_la = (TH2D*)f1.Get("Eff2D_la");
+    effhisto_ks = (TH2D*)f1.Get("ks_eff_1");
+    effhisto_la = (TH2D*)f1.Get("la_eff_1");
     
-    hMult = fs->make<TH1D>("mult",";N",300,0,300);
+    hMult = fs->make<TH1D>("mult",";N",600,0,600);
     hMult_ass = fs->make<TH1D>("mult_ass",";N",600,0,600);
     
     for(int i=0; i<ptbin_n_; i++)
@@ -821,6 +855,8 @@ DemoAnalyzerAll::beginJob()
         hKET_la[i] = fs->make<TH1D>(Form("KETlambda_pt%d",i),";GeV",25000,0,12.5);
         hPt_ks[i] = fs->make<TH1D>(Form("Ptkshort_pt%d",i),";GeV",25000,0,12.5);
         hPt_la[i] = fs->make<TH1D>(Form("Ptlambda_pt%d",i),";GeV",25000,0,12.5);
+        hEta_ks[i] = fs->make<TH1D>(Form("Etakshort_pt%d",i),";eta",24,-2.4,2.4);
+        hEta_la[i] = fs->make<TH1D>(Form("Etalambda_pt%d",i),";eta",24,-2.4,2.4);
         hMass_ks[i] = fs->make<TH1D>(Form("masskshort_pt%d",i),";GeV",2000,0,1.0);
         hMass_la[i] = fs->make<TH1D>(Form("masslambda_pt%d",i),";GeV",2000,0.5,1.5);
         hMult_ks[i] = fs->make<TH1D>(Form("mult_ks_pt%d",i),";N",250,0,250);
@@ -837,6 +873,8 @@ DemoAnalyzerAll::beginJob()
         hKET_la_bkg[i] = fs->make<TH1D>(Form("KETlambda_bkg_pt%d",i),";GeV",25000,0,12.5);
         hPt_ks_bkg[i] = fs->make<TH1D>(Form("Ptkshort_bkg_pt%d",i),";GeV",25000,0,12.5);
         hPt_la_bkg[i] = fs->make<TH1D>(Form("Ptlambda_bkg_pt%d",i),";GeV",25000,0,12.5);
+        hEta_ks_bkg[i] = fs->make<TH1D>(Form("Etakshort_bkg_pt%d",i),";GeV",24,-2.4,2.4);
+        hEta_la_bkg[i] = fs->make<TH1D>(Form("Etalambda_bkg_pt%d",i),";GeV",24,-2.4,2.4);
         hMult_ks_bkg[i] = fs->make<TH1D>(Form("mult_ks_bkg_pt%d",i),";N",250,0,250);
         hSignal_ks_bkg[i] = fs->make<TH2D>(Form("signalkshort_bkg_pt%d",i),";#Delta#eta;#Delta#phi",33,-4.95,4.95,31,-(0.5-1.0/32)*PI,(1.5-1.0/32)*PI);
         hBackground_ks_bkg[i] = fs->make<TH2D>(Form("backgroundkshort_bkg_pt%d",i),";#Delta#eta;#Delta#phi",33,-4.95,4.95,31,-(0.5-1.0/32)*PI,(1.5-1.0/32)*PI);
@@ -898,7 +936,7 @@ DemoAnalyzerAll::endJob() {
                     double eta_trg = pvectorTmp_trg.Eta();
                     
                     double effks = effhisto_ks->GetBinContent(effhisto_ks->FindBin(eta_trg,pt_trg));
-                    
+
                     nMult_trg_eff = nMult_trg_eff + 1.0/effks;
                 }
                 
@@ -910,7 +948,7 @@ DemoAnalyzerAll::endJob() {
                     double pt_trg = pvectorTmp_trg.Pt();
                     
                     double effks = effhisto_ks->GetBinContent(effhisto_ks->FindBin(eta_trg,pt_trg));
-                    
+
                     TVector3 pvector_trg_dau1 = pVectTmp_dau[2*ntrg];
                     double eta_trg_dau1 = pvector_trg_dau1.Eta();
                     double phi_trg_dau1 = pvector_trg_dau1.Phi();
@@ -928,9 +966,12 @@ DemoAnalyzerAll::endJob() {
                         
                         double effweight_ass = effhisto->GetBinContent(effhisto->FindBin(eta_ass,pt_ass));
                         
+			if(rejectDaughter_)
+                	{
                         if(fabs(eta_ass - eta_trg_dau1)<0.03 && fabs(phi_ass - phi_trg_dau1)<0.03) continue;
                         if(fabs(eta_ass - eta_trg_dau2)<0.03 && fabs(phi_ass - phi_trg_dau2)<0.03) continue;
-                        
+                        }
+
                         double deltaEta=eta_ass-eta_trg;
                         double deltaPhi=phi_ass-phi_trg;
                         if(deltaPhi>PI)
@@ -975,7 +1016,7 @@ DemoAnalyzerAll::endJob() {
                     double eta_trg = pvectorTmp_trg.Eta();
                     
                     double effla = effhisto_la->GetBinContent(effhisto_la->FindBin(eta_trg,pt_trg));
-                    
+
                     nMult_trg_eff = nMult_trg_eff + 1.0/effla;
                 }
                 
@@ -987,7 +1028,7 @@ DemoAnalyzerAll::endJob() {
                     double pt_trg = pvectorTmp_trg.Pt();
                     
                     double effla = effhisto_la->GetBinContent(effhisto_la->FindBin(eta_trg,pt_trg));
-                    
+
                     TVector3 pvector_trg_dau1 = pVectTmp_dau[2*ntrg];
                     double eta_trg_dau1 = pvector_trg_dau1.Eta();
                     double phi_trg_dau1 = pvector_trg_dau1.Phi();
@@ -1004,10 +1045,13 @@ DemoAnalyzerAll::endJob() {
                         double pt_ass = pvectorTmp_ass.Pt();
                         
                         double effweight_ass = effhisto->GetBinContent(effhisto->FindBin(eta_ass,pt_ass));
-                        
+
+			if(rejectDaughter_)
+                	{                        
                         if(fabs(eta_ass - eta_trg_dau1)<0.03 && fabs(phi_ass - phi_trg_dau1)<0.03) continue;
                         if(fabs(eta_ass - eta_trg_dau2)<0.03 && fabs(phi_ass - phi_trg_dau2)<0.03) continue;
-                        
+                        }
+
                         double deltaEta=eta_ass-eta_trg;
                         double deltaPhi=phi_ass-phi_trg;
                         if(deltaPhi>PI)
@@ -1059,7 +1103,6 @@ DemoAnalyzerAll::endJob() {
                     double eta_trg = pvectorTmp_trg.Eta();
                     
                     double effks = effhisto_ks->GetBinContent(effhisto_ks->FindBin(eta_trg,pt_trg));
-                    
                     nMult_trg_eff = nMult_trg_eff + 1.0/effks;
                 }
                 
@@ -1088,10 +1131,13 @@ DemoAnalyzerAll::endJob() {
                         double pt_ass = pvectorTmp_ass.Pt();
                         
                         double effweight_ass = effhisto->GetBinContent(effhisto->FindBin(eta_ass,pt_ass));
-                        
+
+			if(rejectDaughter_)
+                	{                        
                         if(fabs(eta_ass - eta_trg_dau1)<0.03 && fabs(phi_ass - phi_trg_dau1)<0.03) continue;
                         if(fabs(eta_ass - eta_trg_dau2)<0.03 && fabs(phi_ass - phi_trg_dau2)<0.03) continue;
-                        
+                        }
+
                         double deltaEta=eta_ass-eta_trg;
                         double deltaPhi=phi_ass-phi_trg;
                         if(deltaPhi>PI)
@@ -1136,7 +1182,7 @@ DemoAnalyzerAll::endJob() {
                     double eta_trg = pvectorTmp_trg.Eta();
                     
                     double effla = effhisto_la->GetBinContent(effhisto_la->FindBin(eta_trg,pt_trg));
-                    
+
                     nMult_trg_eff = nMult_trg_eff + 1.0/effla;
                 }
                 
@@ -1165,10 +1211,13 @@ DemoAnalyzerAll::endJob() {
                         double pt_ass = pvectorTmp_ass.Pt();
                         
                         double effweight_ass = effhisto->GetBinContent(effhisto->FindBin(eta_ass,pt_ass));
-                        
+
+			if(rejectDaughter_)
+                	{                        
                         if(fabs(eta_ass - eta_trg_dau1)<0.03 && fabs(phi_ass - phi_trg_dau1)<0.03) continue;
                         if(fabs(eta_ass - eta_trg_dau2)<0.03 && fabs(phi_ass - phi_trg_dau2)<0.03) continue;
-                        
+                        }
+
                         double deltaEta=eta_ass-eta_trg;
                         double deltaPhi=phi_ass-phi_trg;
                         if(deltaPhi>PI)
